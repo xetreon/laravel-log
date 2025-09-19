@@ -1,0 +1,29 @@
+{
+    "name": "xetreon/laravel-log",
+    "description": "A package to send logs into logtrail",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Xetreon\\LaravelLog\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Xetreon",
+            "email": "pallabmandal92@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Xetreon\\LaravelLog\\LogtrailServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": ">=8.1",
+        "laravel/framework": "^11.0"
+    }
+}
