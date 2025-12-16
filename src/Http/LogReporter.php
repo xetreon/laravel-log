@@ -13,7 +13,7 @@ class LogReporter
 
     public function __construct(array $config)
     {
-        $this->endpoint = "https://webhook-test.com/49b976a98e30538f4e5bda7764cee7fd";
+        $this->endpoint = "http://localhost:8000/api/v1/log/ingest";
         $this->async    = $config['async'] ?? config('logtrail.async');
         $this->client   = new Client(['timeout' => 2]);
     }
@@ -23,19 +23,33 @@ class LogReporter
      */
     public function send(array $payload, string $authorization): void
     {
+        $payloadJson = json_encode($payload); // Convert array to JSON
+
+        $compressedPayload = gzencode($payloadJson, 5); // Compress the JSON
         $options = [
             'headers' => [
                 'Authorization'      => 'Bearer '.$authorization,
                 'X-Signature'        => $payload['signature'],
-                'Accept'             => 'application/json',
+                'Accept'        => 'application/json',
+                'Content-Encoding' => 'gzip',
+                'Content-Type'     => 'application/json',
             ],
-            'json' => $payload,
+            'body' => $compressedPayload,
         ];
 
         if ($this->async) {
-            $this->client->postAsync($this->endpoint, $options);
+            $promise = $this->client->postAsync($this->endpoint, $options);
+            $promise->then(
+                function ($response) {
+                    echo $response->getStatusCode();
+                    echo $response->getBody()->getContents();
+                },
+                function ($e) {
+                    echo "Error: " . $e->getMessage();
+                }
+            )->wait();
         } else {
-            $this->client->post($this->endpoint, $options);
+            $response = $this->client->post($this->endpoint, $options);
         }
     }
 }

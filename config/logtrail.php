@@ -53,4 +53,22 @@ return [
     |
     */
     'async' => env('LOGTRAIL_ASYNC', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request Context Enrichment
+    |--------------------------------------------------------------------------
+    | When enabled, Logtrail will automatically capture request details:
+    | - URL, HTTP method, IP address, headers
+    */
+    'enrich_request_context' => env('LOGTRAIL_ENRICH_REQUEST', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Context Tracking
+    |--------------------------------------------------------------------------
+    | When enabled, Logtrail will capture authenticated user data:
+    | Set to false if you need strict PII/GDPR compliance.
+    */
+    'capture_user' => env('LOGTRAIL_CAPTURE_USER', true),
 ];
