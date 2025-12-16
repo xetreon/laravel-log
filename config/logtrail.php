@@ -71,4 +71,14 @@ return [
     | Set to false if you need strict PII/GDPR compliance.
     */
     'capture_user' => env('LOGTRAIL_CAPTURE_USER', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Blade Sourcemap
+    |--------------------------------------------------------------------------
+    | Remaps compiled Blade view stack traces to original .blade.php files
+    | for accurate file paths and line numbers in exceptions.
+    */
+    'blade_sourcemap' => env('LOGTRAIL_BLADE_SOURCEMAP', true),
+
 ];

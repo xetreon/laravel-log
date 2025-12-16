@@ -19,12 +19,14 @@ class LogReporter
     }
 
     /**
+     * @param array $payload
+     * @param string $authorization
+     * @return void
      * @throws GuzzleException
      */
     public function send(array $payload, string $authorization): void
     {
         $payloadJson = json_encode($payload); // Convert array to JSON
-
         $compressedPayload = gzencode($payloadJson, 5); // Compress the JSON
         $options = [
             'headers' => [

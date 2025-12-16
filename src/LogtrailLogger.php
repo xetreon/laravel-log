@@ -25,17 +25,24 @@ class LogtrailLogger extends AbstractLogger
      */
     public function log($level, $message, array $context = []): void
     {
+        $requestData = [];
         $requestHeader = [];
         $requestBody = [];
         try {
             $request = app(Request::class);
-            $userAgent = $request->header('User-Agent');
-            $requestData = [
-                'ip' => $request->ip(),
-                'method' => $request->method(),
-                'url' => $request->fullUrl(),
-                'agent' => $userAgent
-            ];
+            $route = $request->route();
+
+            if(!empty($route)) {
+                $action = $route->getActionName();
+                $requestData = [
+                    'method'       => $request->getMethod(),
+                    'action'       => $action,
+                    'url'          => $route->uri(),
+                    'agent' => $request->header('User-Agent'),
+                    'ip' => $request->ip(),
+                ];
+            }
+
             $requestHeader = $request->headers->all();
             $requestBody = $request->all();
         } catch (Exception $e)
@@ -57,8 +64,10 @@ class LogtrailLogger extends AbstractLogger
         $formatted['request'] = $requestData;
         $formatted['version'] = $version;
 
+
         $authorization = config('logtrail.api_key').":".config('logtrail.api_secret').":".config('logtrail.environment');
         $authorization = rtrim(base64_encode($authorization), "=");
+
         $this->reporter->send($formatted, $authorization);
     }
 }
