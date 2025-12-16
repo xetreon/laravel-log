@@ -13,7 +13,7 @@ class LogReporter
 
     public function __construct(array $config)
     {
-        $this->endpoint = "http://localhost:8000/api/v1/log/ingest";
+        $this->endpoint = "https://api.logtrail.site/api/v1/log/ingest";
         $this->async    = $config['async'] ?? config('logtrail.async');
         $this->client   = new Client(['timeout' => 2]);
     }
