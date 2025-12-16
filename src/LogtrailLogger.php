@@ -67,7 +67,10 @@ class LogtrailLogger extends AbstractLogger
 
         $authorization = config('logtrail.api_key').":".config('logtrail.api_secret').":".config('logtrail.environment');
         $authorization = rtrim(base64_encode($authorization), "=");
-
-        $this->reporter->send($formatted, $authorization);
+        try {
+            $this->reporter->send($formatted, $authorization);
+        } Catch (Exception $e) {
+            // Dont do anything
+        }
     }
 }
