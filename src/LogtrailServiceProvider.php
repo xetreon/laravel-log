@@ -4,8 +4,11 @@ namespace Xetreon\LaravelLog;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Log;
+use Monolog\Logger;
 use Xetreon\LaravelLog\Console\TestLoggerCommand;
 use Illuminate\Support\Facades\Blade;
+use Xetreon\LaravelLog\Handlers\LogtrailHandler;
+
 class LogtrailServiceProvider extends ServiceProvider
 {
     /**
@@ -44,7 +47,12 @@ class LogtrailServiceProvider extends ServiceProvider
         ], 'config');
 
         Log::extend('logtrail', function ($app, array $config) {
-            return new LogtrailLogger($config);
+            $level = $config['level'] ?? 'debug';
+
+            $logger = new Logger('logtrail');
+            $logger->pushHandler(new LogtrailHandler($config, Logger::toMonologLevel($level)));
+
+            return $logger;
         });
 
         if ($this->app->runningInConsole()) {
