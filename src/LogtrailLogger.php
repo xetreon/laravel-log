@@ -6,8 +6,9 @@ use GuzzleHttp\Exception\GuzzleException;
 use Psr\Log\AbstractLogger;
 use Xetreon\LaravelLog\Http\LogReporter;
 use Xetreon\LaravelLog\Formatter\LogtrailFormatter;
-use Illuminate\Http\Request;
 use Exception;
+use Xetreon\LaravelLog\Support\LogtrailContext;
+use Xetreon\LaravelLog\Support\SensitiveDataMasker;
 
 class LogtrailLogger extends AbstractLogger
 {
@@ -25,51 +26,26 @@ class LogtrailLogger extends AbstractLogger
      */
     public function log($level, $message, array $context = []): void
     {
-        $requestData = [];
-        $requestHeader = [];
-        $requestBody = [];
-        try {
-            $request = app(Request::class);
-            $route = $request->route();
+        $req = LogtrailContext::collectRequestContext();
+        $version = LogtrailContext::getGitVersion();
 
-            if(!empty($route)) {
-                $action = $route->getActionName();
-                $requestData = [
-                    'method'       => $request->getMethod(),
-                    'action'       => $action,
-                    'url'          => $route->uri(),
-                    'agent' => $request->header('User-Agent'),
-                    'ip' => $request->ip(),
-                ];
-            }
+        $requestHeader = SensitiveDataMasker::maskHeaders($req['request_header'] ?? []);
+        $requestBody = SensitiveDataMasker::maskBody($req['request_body'] ?? []);
 
-            $requestHeader = $request->headers->all();
-            $requestBody = $request->all();
-        } catch (Exception $e)
-        {
-            $requestData = [];
-        }
-
-        $basePath = base_path('.git');
-        $version = null;
-        if (is_dir($basePath)) {
-            try {
-                $version = trim(shell_exec('git rev-parse --short HEAD 2>/dev/null'));
-            } catch (Exception $e) {
-                $version = null;
-            }
-        }
-
-        $formatted = $this->formatter->format($level, $message, $context, $requestHeader, $requestBody);
-        $formatted['request'] = $requestData;
+        $formatted = $this->formatter->format(
+            (string) $level,
+            (string) $message,
+            $context,
+            $requestHeader,
+            $requestBody
+        );
+        $formatted['request'] = $req['request'] ?? [];
         $formatted['version'] = $version;
 
-
-        $authorization = config('logtrail.api_key').":".config('logtrail.api_secret').":".config('logtrail.environment');
-        $authorization = rtrim(base64_encode($authorization), "=");
+        $authorization = LogtrailContext::buildAuthorization();
         try {
             $this->reporter->send($formatted, $authorization);
-        } Catch (Exception $e) {
+        } catch (Exception) {
             // Dont do anything
         }
     }

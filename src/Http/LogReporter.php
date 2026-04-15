@@ -40,16 +40,8 @@ class LogReporter
         ];
 
         if ($this->async) {
-            $promise = $this->client->postAsync($this->endpoint, $options);
-            $promise->then(
-                function ($response) {
-                    echo $response->getStatusCode();
-                    echo $response->getBody()->getContents();
-                },
-                function ($e) {
-                    echo "Error: " . $e->getMessage();
-                }
-            )->wait();
+            // Keep behavior (waits for completion) but avoid any output side effects.
+            $this->client->postAsync($this->endpoint, $options)->wait();
         } else {
             $response = $this->client->post($this->endpoint, $options);
         }

@@ -19,13 +19,12 @@ class LogtrailFormatter
     {
         $context = $this->normalizeContext($context);
 
-        if (!empty($context)) {
-            if (!empty($requestHeader)) {
-                $context['request_header'] = $requestHeader;
-            }
-            if (!empty($requestBody)) {
-                $context['request_body'] = $requestBody;
-            }
+        // Always attach request metadata when present, even if context is otherwise empty.
+        if (!empty($requestHeader)) {
+            $context['request_header'] = $requestHeader;
+        }
+        if (!empty($requestBody)) {
+            $context['request_body'] = $requestBody;
         }
 
         $payload = [
@@ -255,23 +254,17 @@ class LogtrailFormatter
      */
     protected function getCodeSnippetClamped(string $filePath, int $errorLine, int $padding = 5): ?array
     {
-        $lines = @file($filePath, FILE_IGNORE_NEW_LINES);
-        if (!$lines) return null;
+        $range = $this->readLineRange($filePath, $errorLine, $padding);
+        if (!$range) return null;
 
-        $total = count($lines);
-        if ($total <= 0) return null;
-
-        $errorLine = max(1, min($total, $errorLine));
-
-        $start = max(0, $errorLine - $padding - 1);
-        $end   = min($total, $errorLine + $padding);
-
+        [$startLine, $lines] = $range;
         $snippet = [];
-        for ($i = $start; $i < $end; $i++) {
+        foreach ($lines as $idx => $content) {
+            $lineNo = $startLine + $idx;
             $snippet[] = [
-                'l' => $i + 1,
-                'c' => $lines[$i],
-                'h' => ($i + 1) === $errorLine,
+                'l' => $lineNo,
+                'c' => $content,
+                'h' => $lineNo === $errorLine,
             ];
         }
 
@@ -289,15 +282,73 @@ class LogtrailFormatter
     {
         if (!is_readable($compiledPath)) return null;
 
-        $lines = @file($compiledPath, FILE_IGNORE_NEW_LINES);
-        if (!$lines) return null;
+        // Scan a bounded window backwards to avoid loading big compiled views.
+        // In practice, the nearest LT_LINE marker is very close to the compiled line.
+        $window = 250;
+        $start = max(1, $compiledLine - $window);
 
-        for ($i = min($compiledLine - 1, count($lines) - 1); $i >= 0; $i--) {
+        $range = $this->readLineRangeAbsolute($compiledPath, $start, $compiledLine);
+        if (!$range) return null;
+
+        [$startLine, $lines] = $range;
+        for ($i = count($lines) - 1; $i >= 0; $i--) {
             if (preg_match('/LT_LINE:(\d+)/', $lines[$i], $m)) {
                 return (int) $m[1];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Reads a line window around the target line (1-indexed).
+     * Returns [startLine, lines[]] or null on failure.
+     *
+     * @return array{0:int,1:array<int,string>}|null
+     */
+    protected function readLineRange(string $filePath, int $targetLine, int $padding): ?array
+    {
+        if (!is_readable($filePath)) return null;
+
+        $targetLine = max(1, $targetLine);
+        $startLine = max(1, $targetLine - $padding);
+        $endLine = $targetLine + $padding;
+
+        return $this->readLineRangeAbsolute($filePath, $startLine, $endLine);
+    }
+
+    /**
+     * Reads lines from $startLine..$endLine (both inclusive), 1-indexed.
+     * Returns [startLine, lines[]] or null.
+     *
+     * @return array{0:int,1:array<int,string>}|null
+     */
+    protected function readLineRangeAbsolute(string $filePath, int $startLine, int $endLine): ?array
+    {
+        if (!is_readable($filePath)) return null;
+        $startLine = max(1, $startLine);
+        $endLine = max($startLine, $endLine);
+
+        $fh = @fopen($filePath, 'rb');
+        if (!$fh) return null;
+
+        $lines = [];
+        $lineNo = 0;
+
+        while (!feof($fh)) {
+            $line = fgets($fh);
+            if ($line === false) break;
+
+            $lineNo++;
+            if ($lineNo < $startLine) continue;
+            if ($lineNo > $endLine) break;
+
+            $lines[] = rtrim($line, "\r\n");
+        }
+
+        @fclose($fh);
+
+        if (empty($lines)) return null;
+        return [$startLine, $lines];
     }
 }

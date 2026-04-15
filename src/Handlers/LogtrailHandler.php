@@ -4,12 +4,13 @@ namespace Xetreon\LaravelLog\Handlers;
 
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
-use Illuminate\Http\Request;
 use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
 use Xetreon\LaravelLog\Formatter\LogtrailFormatter;
 use Xetreon\LaravelLog\Http\LogReporter;
+use Xetreon\LaravelLog\Support\LogtrailContext;
+use Xetreon\LaravelLog\Support\SensitiveDataMasker;
 
 class LogtrailHandler extends AbstractProcessingHandler
 {
@@ -28,56 +29,27 @@ class LogtrailHandler extends AbstractProcessingHandler
 
     protected function write(LogRecord $record): void
     {
-        $requestData = [];
-        $requestHeader = [];
-        $requestBody = [];
-
-        try {
-            $request = app(Request::class);
-            $route = $request->route();
-
-            if (!empty($route)) {
-                $action = $route->getActionName();
-
-                $requestData = [
-                    'method' => $request->getMethod(),
-                    'action' => $action,
-                    'url'    => $route->uri(),
-                    'agent'  => $request->header('User-Agent'),
-                    'ip'     => $request->ip(),
-                ];
-            }
-
-            $requestHeader = $request->headers->all();
-            $requestBody = $request->all();
-        } catch (Exception) {
-            $requestData = [];
-        }
-
-        $version = null;
-        $basePath = base_path('.git');
-
-        if (is_dir($basePath)) {
-            try {
-                $v = shell_exec('git rev-parse --short HEAD 2>/dev/null');
-                $version = is_string($v) ? trim($v) : null;
-                $version = $version !== '' ? $version : null;
-            } catch (Exception) {
-                $version = null;
-            }
-        }
+        $req = LogtrailContext::collectRequestContext();
+        $version = LogtrailContext::getGitVersion();
 
         $levelName = strtolower($record->level->getName());
         $message = (string) $record->message;
         $context = is_array($record->context) ? $record->context : [];
 
-        $formatted = $this->payloadFormatter->format($levelName, $message, $context, $requestHeader, $requestBody);
-        $formatted['request'] = $requestData;
+        $requestHeader = SensitiveDataMasker::maskHeaders($req['request_header'] ?? []);
+        $requestBody = SensitiveDataMasker::maskBody($req['request_body'] ?? []);
+
+        $formatted = $this->payloadFormatter->format(
+            $levelName,
+            $message,
+            $context,
+            $requestHeader,
+            $requestBody
+        );
+        $formatted['request'] = $req['request'] ?? [];
         $formatted['version'] = $version;
 
-
-        $authorization = config('logtrail.api_key') . ':' . config('logtrail.api_secret') . ':' . config('logtrail.environment');
-        $authorization = rtrim(base64_encode($authorization), '=');
+        $authorization = LogtrailContext::buildAuthorization();
 
         try {
             $this->reporter->send($formatted, $authorization);
